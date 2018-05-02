@@ -1,0 +1,5 @@
+<network>
+  <name>SED_MANAGEMENT_NET_NAME</name>
+  <ip address='SED_MANAGEMENT_NET_HOST_IP' netmask='SED_MANAGEMENT_NET_MASK'>
+  </ip>
+</network>

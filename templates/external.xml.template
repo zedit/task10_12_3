@@ -1,0 +1,10 @@
+<network>
+  <name>SED_EXTERNAL_NET_NAME</name>
+  <forward mode='nat'/>
+  <ip address='SED_EXTERNAL_NET_HOST_IP' netmask='SED_EXTERNAL_NET_MASK'>
+    <dhcp>
+      <range start='SED_EXTERNAL_NET.2' end='SED_EXTERNAL_NET.254'/>
+      <host mac='SED_MAC' name='SED_VM1_NAME' ip='SED_VM1_EXTERNAL_IP'/>
+    </dhcp>
+  </ip>
+</network>
