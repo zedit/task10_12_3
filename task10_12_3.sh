@@ -1,7 +1,7 @@
 #!/bin/bash
 
 source config
-def_link="https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
+VM_BASE_IMAGE="https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
 def_img="/home/dmitry/projects/kvm-training/xenial.img"
 CHECK_SUM="99e73c2c09cad6a681b2d372c37f2e11"
 DIR_NAME="/var/lib/libvirt/images/"
@@ -47,7 +47,7 @@ function create_man_net {
   local file_man_net="networks/management.xml"
   cp templates/management.xml.template ${file_man_net}
   sed -i "s/SED_MANAGEMENT_NET_NAME/${MANAGEMENT_NET_NAME}/" ${file_man_net}
-  sed -i "s/SED_MANAGEMENT_NET_HOST_IP/${MANAGEMENT_NET_HOST_IP}/" ${file_man_net}
+  sed -i "s/SED_MANAGEMENT_HOST_IP/${MANAGEMENT_HOST_IP}/" ${file_man_net}
   sed -i "s/SED_MANAGEMENT_NET_MASK/${MANAGEMENT_NET_MASK}/" ${file_man_net}
   virsh net-define ${file_man_net}
   virsh net-start ${MANAGEMENT_NET_NAME}
@@ -63,12 +63,12 @@ function downloadImg {
   else
 #end_del_section
     if [ ! -f "${2}" ]; then
-      wget -O ${2} ${def_link}
+      wget -O ${2} ${VM_BASE_IMAGE}
     else
       local existing_file_check_sum="$(md5sum -b ${2} | awk '{print$1}')"
       if [[ "${CHECK_SUM}" != "${existing_file_check_sum}" ]]
         then
-          wget -O ${2} ${def_link}
+          wget -O ${2} ${VM_BASE_IMAGE}
       fi
     fi
   fi
@@ -152,11 +152,16 @@ function createUserdataVM1 {
   sed -i "s/SED_VM1_INTERNAL_IP/${VM1_INTERNAL_IP}/" ${user_data_file}
   sed -i "s/SED_VM2_INTERNAL_IP/${VM2_INTERNAL_IP}/" ${user_data_file}
   sed -i "s/SED_VXLAN_IF/${VXLAN_IF}/g" ${user_data_file}
-  sed -i "s/SED_VXLANIF_ID/${VXLAN_IF}.${VID}/g" ${user_data_file}
+  sed -i "s/SED_VXLAN_ID/${VID}/" ${user_data_file}
   sed -i "s/SED_VM1_VXLAN_IP/${VM1_VXLAN_IP}/" ${user_data_file}
   sed -i "s/SED_INT_IF/${VM1_INTERNAL_IF}/" ${user_data_file}
   sed -i "s/SED_EXT_IF/${VM1_EXTERNAL_IF}/g" ${user_data_file}
   sed -i "s#SED_INT_NET_IP#${INTERNAL_NET_IP}/${INTERNAL_NET_MASK}#" ${user_data_file}
+  sed -i "s#SED_NGINX_LOG_DIR#${NGINX_LOG_DIR}#g" ${user_data_file}
+  sed -i "s/SED_EXTERNAL_NET_HOST_IP/${EXTERNAL_NET_HOST_IP}/" ${user_data_file}
+  sed -i "s#SED_PATH_TO_WORKDIR#${path_to_workir}#" ${user_data_file}
+  sed -i "s/SED_NGINX_PORT/${NGINX_PORT}/" ${user_data_file}
+  sed -i "s#SED_NGINX_IMAGE#${NGINX_IMAGE}#" ${user_data_file}
   cloud-localds -N ${vm1_conf}/network-config.yml ${VM1_CONFIG_ISO} ${user_data_file}
 }
 
@@ -177,15 +182,18 @@ function createUserdataVM2 {
   sed -i "s/SED_VM2_INTERNAL_IP/${VM2_INTERNAL_IP}/" ${user_data_file}
   sed -i "s/SED_VXLAN_IF/${VXLAN_IF}/g" ${user_data_file}
   sed -i "s/SED_VM2_VXLAN_IP/${VM2_VXLAN_IP}/" ${user_data_file}
-  sed -i "s/SED_VXLANIF_ID/${VXLAN_IF}.${VID}/g" ${user_data_file}
+  sed -i "s/SED_VXLAN_ID/${VID}/" ${user_data_file}
+  sed -i "s/SED_APACHE_PORT/${APACHE_PORT}/" ${user_data_file}
+  sed -i "s/SED_APACHE_IMAGE/${APACHE_IMAGE}/" ${user_data_file}
   cloud-localds -N ${vm2_conf}/network-config.yml ${VM2_CONFIG_ISO} ${user_data_file}
 }
 
 function createVM1 {
-  virt-install --virt-type=kvm --name ${VM1_NAME} \
+  virt-install --virt-type=${VM_VIRT_TYPE} --name ${VM1_NAME} \
                --ram ${VM1_MB_RAM} \
                --vcpus=${VM1_NUM_CPU} \
                --noautoconsole \
+               --${VM_TYPE} \
                --network network=${EXTERNAL_NET_NAME},model=virtio,mac=${MAC} \
                --network network=${INTERNAL_NET_NAME},model=virtio \
                --network network=${MANAGEMENT_NET_NAME},model=virtio \
@@ -194,10 +202,11 @@ function createVM1 {
 }
 
 function createVM2 {
-  virt-install --virt-type=kvm --name ${VM2_NAME} \
+  virt-install --virt-type=${VM_VIRT_TYPE} --name ${VM2_NAME} \
                --ram ${VM2_MB_RAM} \
                --vcpus=${VM2_NUM_CPU} \
                --noautoconsole \
+               --${VM_TYPE} \
                --network network=${INTERNAL_NET_NAME},model=virtio \
                --network network=${MANAGEMENT_NET_NAME},model=virtio \
                --cdrom=${VM2_CONFIG_ISO} \
@@ -239,7 +248,7 @@ function nginx_conf {
     mkdir -p ${path_to_workir}/docker/etc
   fi
   cp ${nginx_conf_template} ${path_to_workir}/docker/etc/nginx.conf
-  sed -i "s/SED_VM2_VXLAN_IP/${VM2_VXLAN_IP}/" ${path_to_workir}/docker/etc/nginx.conf
+  sed -i "s/SED_VM2_VXLAN_IP_APACHE_PORT/${VM2_VXLAN_IP}:${APACHE_PORT}/" ${path_to_workir}/docker/etc/nginx.conf
 }
 
 function nfs_setup {

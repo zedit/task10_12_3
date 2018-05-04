@@ -24,7 +24,9 @@ MANAGEMENT_HOST_IP=${MANAGEMENT_NET}.1
 # VMs global parameters
 SSH_PUB_KEY=/home/dmitry/.ssh/id_rsa.pub
 VM_TYPE=hvm
+VM_VIRT_TYPE=kvm
 VM_DNS=8.8.8.8
+VM_BASE_IMAGE=https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img
 
 
 # overlay
@@ -62,4 +64,3 @@ APACHE_IMAGE="httpd:2.4"
 NGINX_PORT=17080
 APACHE_PORT=13254
 NGINX_LOG_DIR=/srv/log/nginx
-

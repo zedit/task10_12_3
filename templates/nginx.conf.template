@@ -5,7 +5,7 @@ server {
     ssl_certificate         /etc/nginx/certs/web.crt;
     ssl_certificate_key     /etc/nginx/certs/web.key;
     location / {
-                proxy_pass         http://SED_VM2_VXLAN_IP;
+                proxy_pass         http://SED_VM2_VXLAN_IP_APACHE_PORT;
 		proxy_redirect     off;
 		proxy_set_header   Host $host;
 		proxy_set_header   X-Real-IP $remote_addr;

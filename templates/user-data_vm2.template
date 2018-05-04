@@ -7,26 +7,28 @@ ssh_authorized_keys:
 write_files: 
   - content: |
         #!/bin/bash
-        apt-get update
-        apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-        add-apt-repository \
-            "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) \
-            stable"
-        apt-get update
-        apt-get install -y docker-ce
-    path: /docker_install.sh
-    permissions: 0755
-  - content: |
-        #!/bin/bash
-        apt-get update
-        apt-get install -y openvswitch-switch
-        ovs-vsctl add-br SED_VXLANIF_ID 
-        ovs-vsctl add-port SED_VXLANIF_ID SED_VXLAN_IF -- set interface SED_VXLAN_IF type=vxlan options:local_ip=SED_VM2_INTERNAL_IP options:remote_ip=SED_VM1_INTERNAL_IP
-        ifconfig SED_VXLANIF_ID SED_VM2_VXLAN_IP/24
-    path: /vxlan_conf.sh
+        function docker_install {
+          apt-get update
+          apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          add-apt-repository \
+              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+              $(lsb_release -cs) \
+              stable"
+          apt-get update
+          apt-get install -y docker-ce
+          docker run -d -p SED_APACHE_PORT:80 SED_APACHE_IMAGE
+        }
+
+        function vxlan_conf {
+          ip link add SED_VXLAN_IF type vxlan id SED_VXLAN_ID remote SED_VM1_INTERNAL_IP local SED_VM2_INTERNAL_IP dstport 4789
+          ip link set SED_VXLAN_IF up
+          ip addr add SED_VM2_VXLAN_IP/24 dev SED_VXLAN_IF
+        }
+
+        docker_install
+        vxlan_conf
+    path: /start.sh
     permissions: 0755
 runcmd:
-  - ./docker_install.sh
-  - ./vxlan_conf.sh
+  - ./start.sh

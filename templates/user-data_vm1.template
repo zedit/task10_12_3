@@ -7,31 +7,46 @@ ssh_authorized_keys:
 write_files:
   - content: |
         #!/bin/bash
-        apt-get update
-        apt-get install -y openvswitch-switch
-        ovs-vsctl add-br SED_VXLANIF_ID 
-        ovs-vsctl add-port SED_VXLANIF_ID SED_VXLAN_IF -- set interface SED_VXLAN_IF type=vxlan options:local_ip=SED_VM1_INTERNAL_IP options:remote_ip=SED_VM2_INTERNAL_IP
-        ifconfig SED_VXLANIF_ID SED_VM1_VXLAN_IP/24
-    path: /vxlan_conf.sh
+
+        function install_docker {
+          apt-get update
+          apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          add-apt-repository \
+              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+              $(lsb_release -cs) \
+              stable"
+          apt-get update
+          apt-get install -y docker-ce
+        }
+
+        function nfs {
+          apt-get update
+          apt-get install -y nfs-kernel-server nfs-common
+          mkdir /home/ubuntu/data
+          mkdir -p SED_NGINX_LOG_DIR
+          sudo mount -t nfs -O uid=1000,iocharset=utf-8 SED_EXTERNAL_NET_HOST_IP:SED_PATH_TO_WORKDIR/docker /home/ubuntu/data
+          docker run -d -v /home/ubuntu/data/certs:/etc/nginx/certs:ro -v /home/ubuntu/data/etc/nginx.conf:/etc/nginx/conf.d/nginx.conf:ro -v SED_NGINX_LOG_DIR:/var/log/nginx -p SED_NGINX_PORT:443 SED_NGINX_IMAGE
+        }
+        
+        function nat_up {
+          echo "1" >> /proc/sys/net/ipv4/ip_forward
+          iptables -A FORWARD -i SED_INT_IF -o SED_EXT_IF -j ACCEPT
+          iptables -t nat -A POSTROUTING -o SED_EXT_IF -s SED_INT_NET_IP -j MASQUERADE
+        }
+
+        function vxlan_conf {
+          ip link add SED_VXLAN_IF type vxlan id SED_VXLAN_ID remote SED_VM2_INTERNAL_IP local SED_VM1_INTERNAL_IP dstport 4789
+          ip link set SED_VXLAN_IF up
+          ip addr add SED_VM1_VXLAN_IP/24 dev SED_VXLAN_IF
+        }
+        
+        nat_up
+        install_docker
+        nfs
+        vxlan_conf
+        
+    path: /start.sh
     permissions: 0755
-  - content: |
-        #!/bin/bash
-        apt-get update
-        apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-        add-apt-repository \
-            "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) \
-            stable"
-        apt-get update
-        apt-get install -y docker-ce
-    path: /docker_install.sh
-    permissions: 0755
-  - content: |
-          1
-    path: /proc/sys/net/ipv4/ip_forward
 runcmd:
-  - iptables -A FORWARD -i SED_INT_IF -o SED_EXT_IF -j ACCEPT
-  - iptables -t nat -A POSTROUTING -o SED_EXT_IF -s SED_INT_NET_IP -j MASQUERADE
-  - ./vxlan_conf.sh
-  - ./docker-install.sh
+  - ./start.sh
