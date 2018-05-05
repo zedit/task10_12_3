@@ -1,1 +1,6 @@
 *.swp
+*.img
+config-drives/
+docker/
+networks/
+

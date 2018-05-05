@@ -1,9 +1,7 @@
 #!/bin/bash
 
 source config
-VM_BASE_IMAGE="https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
-def_img="/home/dmitry/projects/kvm-training/xenial.img"
-CHECK_SUM="99e73c2c09cad6a681b2d372c37f2e11"
+CHECK_SUM="3d2b173212bb6f3c702df72e78fac3a7"
 DIR_NAME="/var/lib/libvirt/images/"
 UDVM1="templates/user-data_vm1.template"
 UDVM2="templates/user-data_vm2.template"
@@ -11,6 +9,7 @@ MAC=52:54:00:`(date; cat /proc/interrupts) | md5sum | sed -r 's/^(.{6}).*$/\1/; 
 vm1_conf="config-drives/vm1-config"
 vm2_conf="config-drives/vm2-config"
 path_to_workir=$(pwd)
+def_img="${path_to_workir}/xenial-server-cloudimg-amd64-disk1.img"
 
 function create_ext_net {
   if [ ! -e "networks/" ]; then
@@ -57,18 +56,18 @@ function downloadImg {
   if [ ! -e "${DIR_NAME}/${1}" ]; then
     mkdir ${DIR_NAME}/${1}
   fi
-#del_section
   if [ -f "${def_img}" ]; then
-    cp "${def_img}" "${2}"
+    cp ${def_img} ${2}
   else
-#end_del_section
-    if [ ! -f "${2}" ]; then
-      wget -O ${2} ${VM_BASE_IMAGE}
+    if [ ! -f ${def_img} ]; then
+      wget -O ${def_img} ${VM_BASE_IMAGE}
+      cp ${def_img} ${2} 
     else
-      local existing_file_check_sum="$(md5sum -b ${2} | awk '{print$1}')"
+      local existing_file_check_sum="$(md5sum -b ${def_img} | awk '{print$1}')"
       if [[ "${CHECK_SUM}" != "${existing_file_check_sum}" ]]
         then
-          wget -O ${2} ${VM_BASE_IMAGE}
+          wget -O ${def_img} ${VM_BASE_IMAGE}
+          cp ${def_img} ${2}
       fi
     fi
   fi
@@ -78,7 +77,7 @@ function createNetworkVM1data {
   if [ ! -e "${vm1_conf}" ]; then
     mkdir -p ${vm1_conf}
   fi
-cat << EOF > ${vm1_conf}/network-config.yml
+cat << EOF > ${vm1_conf}/meta-data
 version: 1
 config:
   - type: nameserver
@@ -111,7 +110,7 @@ function createNetworkVM2data {
   if [ ! -e "${vm2_conf}" ]; then
     mkdir ${vm2_conf}
   fi
-cat << EOF > ${vm2_conf}/network-config.yml
+cat << EOF > ${vm2_conf}/meta-data
 version: 1
 config:
   - type: nameserver
@@ -162,7 +161,7 @@ function createUserdataVM1 {
   sed -i "s#SED_PATH_TO_WORKDIR#${path_to_workir}#" ${user_data_file}
   sed -i "s/SED_NGINX_PORT/${NGINX_PORT}/" ${user_data_file}
   sed -i "s#SED_NGINX_IMAGE#${NGINX_IMAGE}#" ${user_data_file}
-  cloud-localds -N ${vm1_conf}/network-config.yml ${VM1_CONFIG_ISO} ${user_data_file}
+  cloud-localds -N ${vm1_conf}/meta-data ${VM1_CONFIG_ISO} ${user_data_file}
 }
 
 function createUserdataVM2 {
@@ -185,7 +184,7 @@ function createUserdataVM2 {
   sed -i "s/SED_VXLAN_ID/${VID}/" ${user_data_file}
   sed -i "s/SED_APACHE_PORT/${APACHE_PORT}/" ${user_data_file}
   sed -i "s/SED_APACHE_IMAGE/${APACHE_IMAGE}/" ${user_data_file}
-  cloud-localds -N ${vm2_conf}/network-config.yml ${VM2_CONFIG_ISO} ${user_data_file}
+  cloud-localds -N ${vm2_conf}/meta-data ${VM2_CONFIG_ISO} ${user_data_file}
 }
 
 function createVM1 {
@@ -239,7 +238,6 @@ EOF
   openssl genrsa -out "${ssl_cert_key}" 2048
   openssl req -new -out "${ssl_csr}" -key "${ssl_cert_key}" -subj "/C=UA/ST=Kharkov/L=Kharkov/O=homework/OU=task6_7/CN=${VM1_NAME}/"
   openssl x509 -req -in "${ssl_csr}" -CA "${root_cert}" -CAkey "${root_cert_key}" -CAcreateserial -out "${ssl_cert}" -extensions v3_req -extfile "${ssl_conf}"
-  cat "${ssl_cert}" "${root_cert}" > ${ssl_cert_chain}
 }
 
 function nginx_conf {
